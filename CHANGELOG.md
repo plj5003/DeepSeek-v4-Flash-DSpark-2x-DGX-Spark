@@ -1,3 +1,15 @@
+## 2026-08-15
+
+### Fixed
+
+- **Issue #65: engine death when a new MoE shape triggers JIT compilation mid-inference** (`VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS` + persistent `TILELANG_CACHE_DIR`): on 2026-08-15 ~00:03 UTC the serving engine died after a request hit an MoE/batch shape not covered by startup warmup. CuTeDSL began JIT-compiling `W4A16FusedMoeKernel` (+ TileLang `mhc_pre_big_fuse_with_norm`) **during inference**; the worker blocked ~5 min on the compile, the `sample_tokens` RPC hit vLLM stock `VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS=300`, and vLLM v1 converted that timeout into a hard worker death: `TimeoutError: RPC call to sample_tokens timed out` → `EngineDeadError` → full engine shutdown. `restart: unless-stopped` auto-respawned the stack (~12 min cold start) with no manual intervention.
+
+  Two compose fixes, both overridable:
+  1. `VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS=1800` — lets the model-executor RPC ride out a worst-case 5–10 min JIT compile instead of killing the engine.
+  2. `TILELANG_CACHE_DIR=/cache/jit/tilelang` (+ `${DSPARK_JIT_CACHE:-$HOME/.cache/dspark-jit}:/cache/jit` bind) — TileLang's compiled-kernel cache previously lived in the container writable layer (`~/.tilelang/cache`) and was lost on every container recreation, forcing full re-JIT on every respawn. CuTeDSL's cache needed no override: it already lands in the persistent `/tmp` bind (`$TMPDIR/<user>/cutlass_python_cache`).
+
+  Diagnosis notes (for recurrence): the tell is `CuTeDSL JIT compilation during inference: …` in `jit_monitor.py` followed one-to-few minutes later by `RPC call to … timed out` → `EngineDeadError` → `Application shutdown complete`. It is **not** a RoCE/fabric fault (zero NCCL errors; API pings answer throughout; GPU genuinely busy at ~96%) and **not** a weights/hardware fault (clean reload after respawn). Upstream-proper fix is wider startup warmup in the Anemll runtime build. See [docs/ENVS.md](docs/ENVS.md) and linear.app/johnsenhq/issue/JOH-5.
+
 ## 2026-08-14
 
 ### Fixed

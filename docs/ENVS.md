@@ -63,7 +63,9 @@ PY
 | `VLLM_HOST_IP` | Distributed bind address |
 | `VLLM_PREFIX_CACHE_RETENTION_INTERVAL` | Issue #26: sparsify SWA prefix-cache checkpoints (default 4096). This is the warm-hit fix; the coordinator must still let SWA shrink the common hit (hotfix v2, issue #36). |
 | `VLLM_CACHE_ROOT` | vLLM cache root (compose sets path) |
+| `VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS` | Issue #65: model-executor RPC deadline (default **1800**, was vLLM's 300). A new MoE shape mid-inference forces a 5–10 min CuTeDSL/TileLang JIT inside the worker; the stock 300s deadline killed the engine (`RPC call to sample_tokens timed out` → `EngineDeadError`) instead of waiting. Registered vLLM env key, safe on 0.1.1. |
 | `CUTE_DSL_ARCH` | **Not** `VLLM_*` — CuTeDSL/b12x compile target (`sm_121a` on GB10) |
+| `TILELANG_CACHE_DIR` | **Not** `VLLM_*` — Issue #65: persistent TileLang compiled-kernel cache (compose sets `/cache/jit/tilelang`). The stock default `~/.tilelang/cache` lives in the container writable layer and is lost on every recreation, forcing full re-JIT per respawn. CuTeDSL's cache needs no override (landed in the persistent `/tmp` bind as `$TMPDIR/<user>/cutlass_python_cache`). |
 | `TORCH_CUDA_ARCH_LIST` / `FLASHINFER_CUDA_ARCH_LIST` | Build/JIT arch lists |
 | `NCCL_*` / `TP_SOCKET_IFNAME` / `GLOO_SOCKET_IFNAME` | Fabric |
 | `HF_*` / `TRANSFORMERS_OFFLINE` | Hub cache behavior |
