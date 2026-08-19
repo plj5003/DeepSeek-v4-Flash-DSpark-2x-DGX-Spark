@@ -1,3 +1,13 @@
+## 2026-08-19
+
+### Changed
+
+- **Issue #84: DSpark spec-decode promoted to the official `7/greedy` (A/B-validated, ~3.3x decode) + prefill-length boot pre-warm**: A/B on 2×Spark TP=2 (`MAX_NUM_SEQS=1`), `benchmark-0731.py` prompt=256 / max_tokens=1024: c=1 decode **14.03 → 46.12 tok/s** warm (+229%; 5/probabilistic baseline vs 7/greedy), c=4 aggregate **14.24 → 20.00 tok/s** (+40%), c=4 wall 274s → 205s; c=1 warm TTFT 0.46s → 0.71s (7-token verify is heavier, negligible). Sole cost: a one-time ~30s first-request TTFT per ~prefill length bucket on a cold-boot-only JIT (`W4A16FusedMoeKernel` — the engine survives it via #65's 1800s deadline). The start script's pre-warm now also fires ~300/~1024-token prefill passes, so the next cold boot covers those buckets (with the persistent JIT cache they burn in ~1s on later reboots). `draft_sample_method` is now env-overridable in compose (`DSPARK_DRAFT_SAMPLE_METHOD`, default `probabilistic` = unchanged for anyone not opting in); `.env.dspark` on this cluster sets `MTP_NUM_TOKENS=7` + `DSPARK_DRAFT_SAMPLE_METHOD=greedy` (the pairing from DeepSeek's official 0731 card, the vLLM recipe, and NVIDIA's NVFP4-DSpark card).
+
+- **Docs: #48957 / #50298 status corrected** — both have been applied at boot by the compose entrypoint apply loop all along (stale "not yet applied" notes removed; `--status` all-APPLY verified live); #48957's run-time skip gate (cudagraph mode ≠ FULL) documented.
+
+- **Compose edit hazard documented**: the `command:` block is a YAML folded scalar — `#` comment lines inside it fold onto the script's physical lines and a mid-line `#` swallows the rest of the shell script (this bit us live on 2026-08-19: a 5-line comment ate the `case` block → entrypoint syntax error → crash-loop on both nodes). Comments belong in ordinary YAML outside the scalar; validate with `bash -n` on the `$$`-unescaped folded string after any in-scalar edit.
+
 ## 2026-08-15
 
 ### Fixed

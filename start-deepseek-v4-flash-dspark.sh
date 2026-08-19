@@ -692,7 +692,7 @@ for _ in $(seq 1 "$WAIT_ATTEMPTS"); do
     # the RPC timeout protection is still far away, so the first real user
     # request does not pay a 30-60s first-JIT latency spike.
     # (The definitive fix is the vLLM 0.27 JIT-warmup infra #47451/#49903.)
-    echo "Running JIT pre-warm passes (max_tokens 32/128, non-fatal)..."
+    echo "Running JIT pre-warm passes (short: max_tokens 32/128; prefill ~300/~1024 tok; non-fatal)..."
     for _warm_mt in 32 128; do
       if curl -fsS --max-time 300 "$CHAT_URL" \
         -H "Content-Type: application/json" \
@@ -700,6 +700,28 @@ for _ in $(seq 1 "$WAIT_ATTEMPTS"); do
         echo "  pre-warm max_tokens=$_warm_mt OK"
       else
         echo "  WARN: pre-warm max_tokens=$_warm_mt failed (non-fatal; first requests are still covered by VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS + persistent JIT cache)." >&2
+      fi
+    done
+    # Prefill-length passes (issue #84): the A/B showed a cold ~280-token
+    # prefill paying ~30s W4A16FusedMoeKernel JIT as first-request TTFT once
+    # after boot. Unit "benchmark context datum " ~3 tokens, so ~100/~340
+    # repeats ≈ 300/~1024 tokens (slight overage is fine — buckets only
+    # need to be covered). With the persistent JIT cache these burn in ~1s on
+    # every reboot after the first.
+    _warm_unit="benchmark context datum "
+    for _warm_repeats in 100 340; do
+      _warm_prompt=""
+      _warm_i=0
+      while [ "$_warm_i" -lt "$_warm_repeats" ]; do
+        _warm_prompt="${_warm_prompt}${_warm_unit}"
+        _warm_i=$((_warm_i + 1))
+      done
+      if curl -fsS --max-time 300 "$CHAT_URL" \
+        -H "Content-Type: application/json" \
+        -d '{"model":"'"${SERVED_MODEL_NAME:-deepseek-v4-flash-dspark}"'","messages":[{"role":"user","content":"'"${_warm_prompt}"'" "}]","max_tokens":8,"temperature":0.6,"top_p":0.95,"thinking_token_budget":16,"chat_template_kwargs":{"thinking":true,"reasoning_effort":"low"}}' >/dev/null; then
+        echo "  pre-warm prefill~$(( _warm_repeats * 3 ))tok OK"
+      else
+        echo "  WARN: pre-warm prefill~$(( _warm_repeats * 3 ))tok failed (non-fatal)." >&2
       fi
     done
     exit 0
