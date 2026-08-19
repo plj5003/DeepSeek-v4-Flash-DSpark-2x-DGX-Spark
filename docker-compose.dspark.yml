@@ -53,6 +53,16 @@ services:
     #   - This file: knobs registered (or non-VLLM_) on Anemll 0.1.1
     #   - docker-compose.stage-c.override.yml: Stage-C overlay kill-switches
     # See docs/ENVS.md before adding VLLM_* keys back to the default path.
+    # NOTE: the `command` block below is a YAML folded scalar — the shell script
+# is folded onto few physical lines, so inline `#` comments inside it are
+# UNSAFE (a `#` mid-folded-line swallows everything after it). Keep all
+# comments in this file outside the folded scalar.
+#
+# Spec-decode knobs (issue #84): MTP_NUM_TOKENS (default 5) and
+# DSPARK_DRAFT_SAMPLE_METHOD (default "probabilistic" = historical fork
+# default; "greedy" is DeepSeek's official 0731 card / vLLM recipe / NVIDIA
+# NVFP4 card pairing, used with MTP_NUM_TOKENS=7) are interpolated from the
+# process environment (.env.dspark) inside the SPECULATIVE_CONFIG line.
     environment:
       HF_HOME: /cache/huggingface
       HF_HUB_OFFLINE: "${HF_HUB_OFFLINE:-0}"
@@ -174,11 +184,6 @@ services:
           export VLLM_PLUGINS="$${VLLM_PLUGINS:-gb10_hybrid_nvfp4}";
           VLLM_QUANTIZATION_ARGS="--quantization modelopt_gb10_hybrid";
         fi;
-        # Draft sampling method: "probabilistic" (recipe default) or "greedy".
-        # DeepSeek's official 0731 card + vLLM recipe + NVIDIA NVFP4 card all
-        # ship greedy with num_speculative_tokens=7; 5/probabilistic is the
-        # tested fork default. A/B via .env.dspark (DSPARK_DRAFT_SAMPLE_METHOD
-        # / MTP_NUM_TOKENS); see issue #84.
         SPECULATIVE_CONFIG="{\"method\":\"dspark\",\"num_speculative_tokens\":$${MTP_NUM_TOKENS:-5},\"draft_sample_method\":\"$${DSPARK_DRAFT_SAMPLE_METHOD:-probabilistic}\"}";
         case "$${DEFAULT_THINKING:-low}" in
           off) DEFAULT_CHAT_TEMPLATE_KWARGS='{"thinking":false}' ;;
