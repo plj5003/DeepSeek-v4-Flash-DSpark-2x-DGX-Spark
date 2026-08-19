@@ -10,6 +10,8 @@
 
   Diagnosis notes (for recurrence): the tell is `CuTeDSL JIT compilation during inference: …` in `jit_monitor.py` followed one-to-few minutes later by `RPC call to … timed out` → `EngineDeadError` → `Application shutdown complete`. It is **not** a RoCE/fabric fault (zero NCCL errors; API pings answer throughout; GPU genuinely busy at ~96%) and **not** a weights/hardware fault (clean reload after respawn). Upstream-proper fix is wider startup warmup in the Anemll runtime build. See [docs/ENVS.md](docs/ENVS.md) and linear.app/johnsenhq/issue/JOH-5.
 
+  **Live validation (deployed 2026-08-15, checked 2026-08-19):** 4+ days of uptime with zero engine deaths. On 2026-08-15 13:46 a `W4A16FusedMoeKernel` re-JIT event fired during inference — it completed as a latency spike and the engine survived, exactly the failure-to-latency conversion this fix targets. Start script also gained non-fatal boot JIT pre-warm passes (thinking-budget Triton kernels + MTP-verify decode shapes) so the first user request does not pay first-JIT cost.
+
 ## 2026-08-14
 
 ### Fixed

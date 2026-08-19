@@ -10,8 +10,8 @@ upstream vLLM v0.27.0 onto the Anemll dspark-vllm-gx10 0.1.1 image
 | `hotfix-dsv4-dense-prefill-indexer-48407.sh` | #48407 | skip indexer scoring on short dense prefills | **Stage A only — dormant by design** (see below) |
 | `hotfix-dsv4-mtp-buffer-50312.sh` | #50312 | 448 MiB GPU memory saved in the PP buffer (256 MiB/rank here) | **live**; includes two `model_runner.py` None-guards upstream 0.27.0 lacks |
 | `hotfix-dsv4-adaptive-topk-50004.sh` | #50004 | 1.0% E2E: adaptive C128A topk width | **live** |
-| `hotfix-dsv4-skip-empty-c128-48957.sh` | #48957 | ~2x kernel: skip C128 compressor launch when no request crosses a 128-token boundary | **script verified, not yet applied**; fires only when cudagraph mode ≠ FULL |
-| `hotfix-dsv4-flashmla-workspace-50298.sh` | #50298 | 1.88x kernel: workspace reuse for combined topk+SWA indices on the FlashMLA prefill path | **script verified, not yet applied** |
+| `hotfix-dsv4-skip-empty-c128-48957.sh` | #48957 | ~2x kernel: skip C128 compressor launch when no request crosses a 128-token boundary | **applied at boot** (compose entrypoint apply loop; `--status` all-APPLY verified live 2026-08-18); run-time skip gate fires only when cudagraph mode ≠ FULL |
+| `hotfix-dsv4-flashmla-workspace-50298.sh` | #50298 | 1.88x kernel: workspace reuse for combined topk+SWA indices on the FlashMLA prefill path | **applied at boot** (compose entrypoint apply loop; `--status` all-APPLY verified live 2026-08-18) |
 
 All four are idempotent, apply on both nodes (each runs its own container),
 and never restart the server themselves. Each supports `--before` / `--after`

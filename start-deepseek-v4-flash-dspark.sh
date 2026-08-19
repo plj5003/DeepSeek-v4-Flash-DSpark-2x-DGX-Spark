@@ -685,6 +685,23 @@ for _ in $(seq 1 "$WAIT_ATTEMPTS"); do
       -H "Content-Type: application/json" \
       -d '{"model":"'"${SERVED_MODEL_NAME:-deepseek-v4-flash-dspark}"'","messages":[{"role":"user","content":"Reply with OK."}],"max_tokens":32,"temperature":0.6,"top_p":0.95,"thinking_token_budget":1,"chat_template_kwargs":{"thinking":true,"reasoning_effort":"low"}}' >/dev/null
     echo "Minimal thinking-budget chat request succeeded."
+    # JIT pre-warm (issue #65 mitigation, non-fatal): the smoke request above
+    # already burned the first decode bucket; these two larger passes burn the
+    # thinking-budget Triton kernels (_force_thinking_end_kernel /
+    # _observe_accepted_end_kernel) and deeper MTP-verify decode shapes while
+    # the RPC timeout protection is still far away, so the first real user
+    # request does not pay a 30-60s first-JIT latency spike.
+    # (The definitive fix is the vLLM 0.27 JIT-warmup infra #47451/#49903.)
+    echo "Running JIT pre-warm passes (max_tokens 32/128, non-fatal)..."
+    for _warm_mt in 32 128; do
+      if curl -fsS --max-time 300 "$CHAT_URL" \
+        -H "Content-Type: application/json" \
+        -d '{"model":"'"${SERVED_MODEL_NAME:-deepseek-v4-flash-dspark}"'","messages":[{"role":"user","content":"Describe a lighthouse in at most 40 words."}],"max_tokens":'"$_warm_mt"',"temperature":0.6,"top_p":0.95,"thinking_token_budget":16,"chat_template_kwargs":{"thinking":true,"reasoning_effort":"low"}}' >/dev/null; then
+        echo "  pre-warm max_tokens=$_warm_mt OK"
+      else
+        echo "  WARN: pre-warm max_tokens=$_warm_mt failed (non-fatal; first requests are still covered by VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS + persistent JIT cache)." >&2
+      fi
+    done
     exit 0
   fi
   wait_with_startup_logs
