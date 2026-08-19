@@ -716,9 +716,8 @@ for _ in $(seq 1 "$WAIT_ATTEMPTS"); do
         _warm_prompt="${_warm_prompt}${_warm_unit}"
         _warm_i=$((_warm_i + 1))
       done
-      if curl -fsS --max-time 300 "$CHAT_URL" \
-        -H "Content-Type: application/json" \
-        -d '{"model":"'"${SERVED_MODEL_NAME:-deepseek-v4-flash-dspark}"'","messages":[{"role":"user","content":"'"${_warm_prompt}"'" "}]","max_tokens":8,"temperature":0.6,"top_p":0.95,"thinking_token_budget":16,"chat_template_kwargs":{"thinking":true,"reasoning_effort":"low"}}' >/dev/null; then
+      _warm_body=$(printf '{"model":"%s","messages":[{"role":"user","content":"%s"}],"max_tokens":8,"temperature":0.6,"top_p":0.95,"thinking_token_budget":16,"chat_template_kwargs":{"thinking":true,"reasoning_effort":"low"}}' "${SERVED_MODEL_NAME:-deepseek-v4-flash-dspark}" "${_warm_prompt}")
+      if curl -fsS --max-time 300 "$CHAT_URL" -H "Content-Type: application/json" -d "$_warm_body" >/dev/null; then
         echo "  pre-warm prefill~$(( _warm_repeats * 3 ))tok OK"
       else
         echo "  WARN: pre-warm prefill~$(( _warm_repeats * 3 ))tok failed (non-fatal)." >&2
